@@ -3,7 +3,8 @@ import torch
 
 
 
-def batch_padder(batch, seq_len, char_len, phoneme_len): # padding method used for the padding of the train and test set during training
+def batch_padder(batch, seq_len, char_len, phoneme_len): 
+
     data = []
     indices = []
     labels = []
@@ -54,7 +55,8 @@ def batch_padder(batch, seq_len, char_len, phoneme_len): # padding method used f
         
     return data, indices, labels, char_ohes, phoneme_ohes
     
-def ind_padder(item, seq_len, char_len, phoneme_len): # padding method used for the padding of the individual instance
+def ind_padder(item, seq_len, char_len, phoneme_len): 
+    
     data = []
     indices = []
     labels = []
@@ -102,7 +104,8 @@ def ind_padder(item, seq_len, char_len, phoneme_len): # padding method used for 
     return data, indices, labels, char_ohes, phoneme_ohes
     
 
-def word_padder(batch, seq_len, char_len, phoneme_len): # padding method used for the evaluation of the condensed representations
+def word_padder(batch, seq_len, char_len, phoneme_len): 
+    
     data = []
     item_labels = []
     indices = []

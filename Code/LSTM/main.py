@@ -3,7 +3,7 @@ import os
 import torch
 import pickle
 import datetime
-from torch.utils.data import DataLoader
+import pandas as pd
 import random
 import sys 
 
@@ -15,11 +15,12 @@ sys.path.insert(0, '/Fridge/users/eli/Code/UTIL')
 import Util
 
 
-def train_model(train_loader, val_loader):
-
-    model = models.ST_AutoEncoder_L1(1)
+def train_model(model, train_loader, val_loader):
     
-    model.to(device)
+    """
+    Trains the model on the train set, validates on the validation set and picks the best performing model 
+    on the validation set during any epoch.
+    """ 
     
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay = weight_decay)
     
@@ -115,6 +116,11 @@ def train_model(train_loader, val_loader):
     return model, train_losses, val_losses, optimizer, best_epoch
 
 def set_seed(seed):
+    
+    """
+    Sets all random seeds to given value
+    """
+    
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.manual_seed(seed)
@@ -125,6 +131,10 @@ def set_seed(seed):
 
 
 def test_model(model, test_loader, loss_function):
+    
+    """
+    Tests the model on unseen data with the given loss function
+    """
     
     test_representations = []
     
@@ -154,9 +164,13 @@ def test_model(model, test_loader, loss_function):
         
         return test_loss
 
-def train_test_log():
+def train_test_log(model):
+    
+    """
+    method that calls all needed functions to train, test, log and save the model
+    """
         
-    model, train_losses, val_losses, optimizer, best_epoch = train_model(train_loader, val_loader)
+    model, train_losses, val_losses, optimizer, best_epoch = train_model(model, train_loader, val_loader)
                 
     test_loss = test_model(model, test_loader, loss_function)
     
@@ -164,6 +178,11 @@ def train_test_log():
         
         
 def save_and_log_model(model, train_losses, val_losses, test_loss, optimizer, best_epoch):
+    
+    """
+    Method that generates a visual example of one reconstruction and then writes it with all other usefull information
+    to an excell file. Also saves the model (pickled)
+    """
           
     now = datetime.datetime.now()
     
@@ -187,21 +206,23 @@ def save_and_log_model(model, train_losses, val_losses, test_loss, optimizer, be
     
     ####################################################################################
     
-    with open("/Fridge/users/eli/Code/LSTM/files/pickled_files/models/" + model.name + "_lr=" + str(learning_rate) + ",e=" + str(best_epoch) + ",b=" + str(batch_size) + "_"+ str(participant) + "_" + str(dt_string), "wb") as fp:   #Pickling
+    extra_info = pd.DataFrame([['description', model.description], ['bottleneck size', model.bottle_neck_size], ['seed', seed]])
+    
+    with open("/Fridge/users/eli/Code/LSTM/files/pickled_files/models/" + model.name + "(" + str(model.bottle_neck_size) + ")_lr=" + str(learning_rate) + ",e=" + str(best_epoch) + ",b=" + str(batch_size) + "_"+ str(participant) + "_" + str(dt_string), "wb") as fp:   #Pickling
         pickle.dump(model, fp)
         print("Saved model")
         
     print("Saving logs...")
-    Util.log_training(ind_batch.squeeze().cpu().detach().numpy(), reconstructed.squeeze().cpu().detach().numpy(), train_losses, val_losses, test_loss, model.name, batch_size, participant, learning_rate, weight_decay, best_epoch, optimizer, loss_function, loader.name, dt_string)    
+    Util.log_training(model.bottle_neck_size, ind_batch.squeeze().cpu().detach().numpy(), reconstructed.squeeze().cpu().detach().numpy(), train_losses, val_losses, test_loss, model.name, batch_size, participant, learning_rate, weight_decay, best_epoch, optimizer, loss_function, loader.name, dt_string)    
 
-
-set_seed(0)
+seed = 0
+set_seed(seed)
 
 participant = 'F1'
 
 batch_size = 1
 shape = [47, 47]
-n_epochs = 50
+n_epochs = 100
 learning_rate = 0.001
 weight_decay = 1e-8
 loss_function = torch.nn.MSELoss()
@@ -212,8 +233,16 @@ parent_dir = os.path.join("/Fridge/users/eli/Data_OG", participant)
 directory_video = participant + "_video"
 video_path = os.path.join(parent_dir, directory_video)
 
-loader = LSTM_loader(participant, batch_size, 0.9, shape)
+#custom_weights = [0, 0.1, 0.5, 1, 1.5, 3, 5, 10]
 
-train_loader, test_loader, val_loader, ind_loader, eval_loader = loader.get_loaders(video_path)
-train_test_log()
+custom_weights = [0]
+
+for u in range (0, len(custom_weights)):
+    loader = LSTM_loader(participant, batch_size, 0.9, shape)
+    
+    model = models.ST_AutoEncoder_G7(1, 16*11*11)
+    model.to(device)
+    
+    train_loader, test_loader, val_loader, ind_loader, eval_loader = loader.get_loaders(video_path)
+    train_test_log(model)
 

@@ -27,7 +27,12 @@ class julia_loader():
         self.ratio = tt_ratio
     
     
-    def train_test_split(self, data, ratio): # Divides the data into train and test split and provides one individual datapoint for the additional reconstruction graphics
+    def train_test_split(self, data, ratio): 
+        
+        """
+        Method that divides the data into a train, validation, test set and keeps one individual datapoint
+        for the visual reconstrucion example
+        """
         
         random.shuffle(data)        
         
@@ -53,7 +58,12 @@ class julia_loader():
                         test.append(data[u])
         return train, test, val, individual
 
-    def load_data(self, root_dir): # Loads pickled data if present, otherwise processes video files into word objects
+    def load_data(self, root_dir): 
+        
+        """
+        Loads the required data files from specified file path. When the data is loaded, it is pickled and stored.
+        The next time this pickled file will be detected and loaded.
+        """
         
         if self.participant.upper() == 'F1':
             anker = [8, 9]
@@ -147,6 +157,10 @@ class julia_loader():
 
     def get_loaders(self, path, seq_len, most_characters, most_phonemes):
         
+        """
+        Returns the dataloaders
+        """
+        
         train, test, val, ind, all_data = self.load_data(path)
         
         train_loader = DataLoader(train,
@@ -184,8 +198,7 @@ class julia_loader():
         return train_loader, test_loader, val_loader, ind_loader, eval_loader    
     
     
-class Word: # this object stores the label, data and additional info such as the one hot encodings
-    
+class Word: 
     
 
     def __init__(self, label, data, arpa):
@@ -198,6 +211,10 @@ class Word: # this object stores the label, data and additional info such as the
     
     
     def get_label_ohe(self, label):
+        
+        """
+        Returns a one hot encoding of the labels characters
+        """
         
         stripped_label = Util.strip_string(label)
         
@@ -213,6 +230,10 @@ class Word: # this object stores the label, data and additional info such as the
         return vector
     
     def get_phoneme_ohe(self, label):
+        
+        """
+        Returns a one hot encoding of the labels phonemes
+        """
         
         word = Util.strip_string(label).lower().strip()
         arpabet = self.arpa
@@ -235,6 +256,11 @@ class Word: # this object stores the label, data and additional info such as the
         return vector
         
     def get_index(self, phoneme):
+        
+        """
+        Returns indice of each phoneme for the one hot encodings
+        """
+        
         indicies = {
           "AA": 0,
           "AH": 1,

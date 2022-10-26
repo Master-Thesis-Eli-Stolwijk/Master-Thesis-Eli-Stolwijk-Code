@@ -58,6 +58,22 @@ class Condenser:
                     _, representation = model(eval_item_data.to(device).to(dtype=torch.float))
                     
                     representation = representation[0][0].squeeze().flatten()
+                
+                if model_mode == 'GRU':
+                    
+                    eval_item_data, eval_item_label = next(eval_iter)
+                    
+                    eval_item_data = torch.stack(eval_item_data)
+                        
+                    eval_item_data = eval_item_data.unsqueeze(1)
+                    
+                    _, representation = model(eval_item_data.to(device).to(dtype=torch.float))
+                    
+                    if isinstance(representation, list):
+                        
+                        representation = representation[0]
+                    
+                    representation = representation.squeeze().flatten()
                     
                 condensed = Condensed_word(eval_item_label[0], representation.cpu().detach().numpy())
             

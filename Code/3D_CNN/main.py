@@ -2,8 +2,6 @@ import numpy as np
 import os
 import torch_models
 import torch
-from matplotlib import pyplot as plt
-
 import pickle
 import datetime
 from torch.utils.data import DataLoader
@@ -12,22 +10,23 @@ import random
 import sys
 
 sys.path.insert(0, '/Fridge/users/eli/Code/3D_CNN')
-from loss_functions import Vanilla_Loss
-from loss_functions import PLD_Loss
-from loss_functions import MPD_Loss
-from loss_functions import per_frame_loss
 from data_loaders import julia_loader
 
 sys.path.insert(0, '/Fridge/users/eli/Code/UTIL')
 import Util
 
-sys.path.insert(0, '/Fridge/users/eli/Code/ANALYZER')
-import analysis_tools as Analyzer
+from loss_functions import Vanilla_Loss
+from loss_functions import PLD_Loss
+from loss_functions import MPD_Loss
+from loss_functions import per_frame_loss
 
 
-def train_model(train_loader, val_loader, bottle_neck_size, drop_out_rate):
+def train_model(model, train_loader, val_loader, bottle_neck_size, drop_out_rate):
 
-    model = torch_models.CNN_AE_P01(bottle_neck_size, drop_out_rate)
+    """
+    Trains the model on the train set, validates on the validation set and picks the best performing model 
+    on the validation set during any epoch.
+    """    
 
     model.to(device)
     
@@ -150,6 +149,11 @@ def train_model(train_loader, val_loader, bottle_neck_size, drop_out_rate):
     return best_model, train_loss, val_losses, optimizer, best_epoch
 
 def set_seed(seed):
+    
+    """
+    Sets all random seeds to given value
+    """
+    
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     torch.manual_seed(seed)
@@ -158,8 +162,12 @@ def set_seed(seed):
     random.seed(seed)      
 
 
-
 def test_model(model, test_loader, loss_function):
+    
+    """
+    Tests the model on unseen data with the given loss function
+    """
+    
     
     FrameLoss = per_frame_loss()
     
@@ -193,17 +201,27 @@ def test_model(model, test_loader, loss_function):
         
         return test_loss
 
-def train_test_log():
+def train_test_log(model):
         
-            model, train_loss, val_loss, optimizer, epoch = train_model(train_loader, val_loader, bottle_neck_size, drop_out_rate)
-                        
-            test_loss  = test_model(model, test_loader, loss_function)            
-            
-            save_and_log_model(model, lv_weight, epoch, test_loss, train_loss, val_loss, optimizer)
-        
-        
+    """
+    method that calls all needed functions to train, test, log and save the model
+    """
+
+    model, train_loss, val_loss, optimizer, epoch = train_model(train_loader, val_loader)
+                
+    test_loss  = test_model(model, test_loader, loss_function)            
+    
+    save_and_log_model(model, lv_weight, epoch, test_loss, train_loss, val_loss, optimizer)
+    
+    
 def save_and_log_model(model, lv_weight, epoch, test_loss, train_loss, val_loss, optimizer):
-          
+    
+    """
+    Method that generates a visual example of one reconstruction and then writes it with all other usefull information
+    to an excell file. Also saves the model (pickled)
+    """
+    
+    
     now = datetime.datetime.now()
     
     dt_string = now.strftime("%d-%m-%Y_%H-%M-%S")
@@ -235,14 +253,14 @@ def save_and_log_model(model, lv_weight, epoch, test_loss, train_loss, val_loss,
     
     extra = pd.DataFrame([['Custom loss weight', lv_weight], ['Best epoch', epoch], ['Bottleneck size', bottle_neck_size]])
     
-    Util.log_training(ind_batch.squeeze().squeeze().cpu().detach().numpy(), output.squeeze().squeeze().cpu().detach().numpy(), train_loss, val_loss, test_loss, model.name, batch_size, participant, learning_rate, weight_decay, (epoch + 1), optimizer, loss_function, loader.name, dt_string, extra_info=extra)    
+    Util.log_training(model.bottleneck_size, ind_batch.squeeze().squeeze().cpu().detach().numpy(), output.squeeze().squeeze().cpu().detach().numpy(), train_loss, val_loss, test_loss, model.name, batch_size, participant, learning_rate, weight_decay, (epoch + 1), optimizer, loss_function, loader.name, dt_string, extra_info=extra)    
 
 
-set_seed(0)
+set_seed(5)
 
 participants = ['F1']
     
-lev_weights = [0]
+lev_weights = [3]
 
 drop_out_rate = 0
 
@@ -261,12 +279,10 @@ for u in range(0, len(participants)):
         seq_len = 20
         batch_size = 10
         shape = [48, 44]
-        n_epochs = 1
+        n_epochs = 100
         learning_rate = 0.001
         weight_decay = 1e-8
         loss_function = PLD_Loss(lv_weight, device)
-        
-        
         
         parent_dir = os.path.join("/Fridge/users/eli/Data_OG", participant)
         directory_video = participant + "_video"
@@ -274,22 +290,13 @@ for u in range(0, len(participants)):
         
         loader = julia_loader(participant, batch_size, min_frame, max_frame, 0.9)
         
-        train_data, test_data, val_data, ind, all_data = loader.load_data(video_path)
+        _, _, _, _, all_data = loader.load_data(video_path)
         
-        
-        
-        most_characters = 0
-        most_phonemes = 0
-        
-        for word in all_data:
-            
-            if len(word.char_ohe) > most_characters: most_characters = len(word.char_ohe)
-            if isinstance(word.phoneme_ohe, (bool)):
-                do = 'nothing'
-            else:
-                if len(word.phoneme_ohe) > most_phonemes: most_phonemes = len(word.phoneme_ohe)
+        most_characters, most_phonemes = Util.get_most_char_and_phonemes(all_data)
         
         train_loader, test_loader, val_loader, ind_loader, _ = loader.get_loaders(video_path, 20, most_characters, most_phonemes)
         
-        train_test_log()
+        model = torch_models.CNN_AE_P01(bottle_neck_size, drop_out_rate)
+        
+        train_test_log(model)
 

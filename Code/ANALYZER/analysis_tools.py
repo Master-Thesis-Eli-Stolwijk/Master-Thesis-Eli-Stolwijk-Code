@@ -20,6 +20,10 @@ import Util
 
 def get_phonemic_levenshtein_matrix(group, show=False, title=None):
     
+    """
+    Method that returns the phonemic levenshtein matrix based on the embedding labels 
+    """
+    
     group_y = []
     group_labels = []
     
@@ -63,6 +67,10 @@ def get_phonemic_levenshtein_matrix(group, show=False, title=None):
 
 def get_MPD_matrix(group, show=False, title=None):
     
+    """
+    Method that returns the mouth position matrix based on the embedding labels
+    """
+    
     group_y = []
     group_labels = []
     
@@ -105,6 +113,10 @@ def get_MPD_matrix(group, show=False, title=None):
 
 def get_levenshtein_matrix(group, show=False, title=None):
     
+    """
+    Method that returns the levenshtein matrix based on the embedding labels 
+    """
+    
     group_y = []
     group_labels = []
     
@@ -137,6 +149,10 @@ def get_levenshtein_matrix(group, show=False, title=None):
 
 def get_soundex_matrix(group, show=False, title=None):
     
+    """
+    Method that returns the soundex matrix based on the embedding labels 
+    """
+    
     group_y = []
     group_labels = []
     
@@ -168,6 +184,10 @@ def get_soundex_matrix(group, show=False, title=None):
     return correlations_array
 
 def get_editex_matrix(group, show=False, title=None):
+    
+    """
+    Method that returns the editex matrix based on the embedding labels 
+    """
     
     group_y = []
     group_labels = []
@@ -202,6 +222,10 @@ def get_editex_matrix(group, show=False, title=None):
     return correlations_array
 
 def get_distance_matrix(group, show=False, title=None):
+    
+    """
+    Method that returns the euclidean distance matrix for the model embeddings 
+    """
     
     group_x = []
     group_y = []
@@ -240,6 +264,11 @@ def get_distance_matrix(group, show=False, title=None):
 
 def get_phonemic_levenshtein_matrix_from_tensor(group_y):
     
+    """
+    method that returs the phonemic levenshtein matrix from a tensor of labels (usefull for custom loss functions)
+    """
+    
+    
     matrix = [ [0]* len(group_y) for i in range(len(group_y))]
     
     for u in range(0, len(group_y)):
@@ -257,6 +286,10 @@ def get_phonemic_levenshtein_matrix_from_tensor(group_y):
     return matrix
 
 def get_mpd_matrix_from_tensor(group_y):
+    
+    """
+    method that returs the mouth position matrix from a tensor of labels (usefull for custom loss functions)
+    """
     
     matrix = [ [0]* len(group_y) for i in range(len(group_y))]
     
@@ -276,11 +309,19 @@ def get_mpd_matrix_from_tensor(group_y):
 
 def show_heatmap(data, labels, title):
     
+    """
+    Plots heatmap of a distance matrix
+    """
+    
     ax = sns.heatmap(data, xticklabels=labels, yticklabels=labels, cmap = 'vlag')
     ax.set_title(title)
     plt.figure()
 
 def switch_representations(to_switch):
+    
+    """
+    Reverses the label string of an object
+    """
     
     switched = []
     
@@ -290,14 +331,12 @@ def switch_representations(to_switch):
 
     return switched
 
-
-def count_syllables(word):
-    return len(
-        re.findall('(?!e$)[aeiouy]+', word, re.I) +
-        re.findall('^[^aeiouy]*e$', word, re.I)
-    )
-
 def split_per_syllable(representations):
+    
+    """
+    Method that splits the data into groups of equal syllable count
+    """
+    
     
     syllable_split_words = [[] for x in range(10)]
     dic = pyphen.Pyphen(lang='en')
@@ -321,6 +360,10 @@ def split_per_syllable(representations):
 
 def select_upper(matrix):
     
+    """
+    Method that selects only the upper traingle of a distance matrix
+    """
+    
     result = []
     
     for u in range(0, len(matrix)): #columns
@@ -329,20 +372,14 @@ def select_upper(matrix):
                 result.append(matrix[u][v])
     return result
 
-def get_duplicate_columns(df):
- 
-    duplicateColumnNames = set()
-    for x in range(df.shape[1]):
- 
-        col = df.iloc[:, x]
-        for y in range(x + 1, df.shape[1]):
-            otherCol = df.iloc[:, y]
-            if col.equals(otherCol):
-                duplicateColumnNames.add(df.columns.values[y])
- 
-    return list(duplicateColumnNames)
+
 
 def number_duplicate_columns(df):
+
+    """
+    this method makes sure no duplicates are present on the axis of a dataframe
+    """    
+
 
     renamer = defaultdict()
      
@@ -369,6 +406,11 @@ def number_duplicate_columns(df):
 
 
 def get_MRI_Matrices_correlation(matrices_a, matrices_b, verbose):
+    
+    """
+    This method returns the correlations between matrix a and matrix b. These matrices can have different sets 
+    of labels. Only labels present in both matrices will be correlated with eachother
+    """
     
     to_concat = []
     
@@ -435,6 +477,11 @@ def get_MRI_Matrices_correlation(matrices_a, matrices_b, verbose):
 
 def get_EMA_correlation(MRI_matrix, path, verbose):
     
+    """
+    This method returns the correlations between an MRi matrix and EMA matrix. These matrices can have
+    different sets of labels. Only labels present in both matrices will be correlated with eachother
+    """
+    
     EMA_matrix = pd.read_csv(path, index_col=[0])
     
     EMA_matrix = number_duplicate_columns(EMA_matrix)
@@ -475,8 +522,7 @@ def get_EMA_correlation(MRI_matrix, path, verbose):
     if verbose == True:
     
         
-        get_MPD_matrix(new_headers, True, "MPD matrix")
-        show_heatmap(np_MRI, new_headers, "Model trained with PLD custom loss (weight = 1), generated distance matrix")
+        show_heatmap(np_MRI, new_headers, "Model generated distance matrix")
         show_heatmap(np_EMA, new_headers, "EMA generated distance matrix")
       
     print("Correlation:")
@@ -492,91 +538,15 @@ def get_EMA_correlation(MRI_matrix, path, verbose):
     df.columns = ['pearson r', 'p'] 
     df.reset_index(drop=True, inplace=True)
     
-    
-    print(df)
     return df
 
     
-def get_representation_correlations(representations, show, phonemic=False):
-    
-    levenshtein_matrices = []
-    euclidean_matrices = []
-    pld_matrices = []
-    
-    syllable_split_words = split_per_syllable(representations)
-    
-    counter = 0
-    
-    for group in syllable_split_words:
-        counter += 1
-        if len(group) > 2:
-            if counter > 1:
-                lev_matrix = get_levenshtein_matrix(group, False, str(counter - 1) + " syllables")
-                dis_matrix = get_distance_matrix(group, show, str(counter - 1) + " syllables")
-                pld_matrix = get_phonemic_levenshtein_matrix(group, show, str(counter - 1) + " syllables")
-            else:
-                lev_matrix = get_levenshtein_matrix(group, False)
-                dis_matrix = get_distance_matrix(group, False)
-                pld_matrix = get_phonemic_levenshtein_matrix(group, False)
-    
-            
-            levenshtein_matrices.append(lev_matrix)
-            euclidean_matrices.append(dis_matrix)
-            pld_matrices.append(pld_matrix)
-    
-    if phonemic == False:
-    
-        print("Correlations with classic Levenshtein matrix")
-        
-        scores = pd.DataFrame({'number of syl': []}, {'pearson r': []}, {'p': []})
-        scores = []
-        
-        for i in range(len(levenshtein_matrices)):
-            
-            score = [i + 1,
-                     stats.spearmanr(select_upper(euclidean_matrices[i].to_numpy()), select_upper(levenshtein_matrices[i]))[0],
-                     stats.spearmanr(select_upper(euclidean_matrices[i].to_numpy()), select_upper(levenshtein_matrices[i]))[1]]
-            scores.append(score)
-        
-        df = pd.DataFrame(scores)
-        df.columns = ['number of syllables', 'pearson r', 'p'] 
-        df.reset_index(drop=True, inplace=True)
-        
-        print(df)
-        return df
-    else:
-        print("Correlations with phonemic Levenshtein matrix")
-        
-        scores = []
-        
-        for i in range(len(pld_matrices)):
-            
-            score = [i + 1,
-                     stats.spearmanr(select_upper(euclidean_matrices[i].to_numpy()), select_upper(pld_matrices[i]))[0],
-                     stats.spearmanr(select_upper(euclidean_matrices[i].to_numpy()), select_upper(pld_matrices[i]))[1]]
-            scores.append(score)
-        
-        df = pd.DataFrame(scores)
-        df.columns = ['number of syllables', 'pearson r', 'p'] 
-        df.reset_index(drop=True, inplace=True)
-        
-        print(df)
-        return df
-    
 
-def get_all_correlations(model, model_mode, loader, show, modes):
+def get_all_correlations(model, model_mode, representations, show, modes):
     
-    #choice of modes: 'pl' (phonemic levenshtein), 'l' (vanilla levenshtein), 'mp' (mout position)
-    
-    con = Condenser()
-    
-    representations = con.condense(loader, model_mode, model)
-    
-    representations = switch_representations(representations)
-    
-    representations.sort(key=lambda x: x.label, reverse=True)
-    
-    representations = switch_representations(representations)
+    """
+    This method returns the correlations between the given embeddings and the specified proxy matrices
+    """
     
     levenshtein_matrices = []
     euclidean_matrices = []

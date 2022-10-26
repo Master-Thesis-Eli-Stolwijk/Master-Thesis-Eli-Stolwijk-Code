@@ -1,15 +1,26 @@
-import os
 import numpy as np
-import cv2
 from matplotlib import pyplot as plt
 import pandas as pd
-import datetime
 import torch
 import tkinter as tk
 from tkinter import filedialog
 import pickle
+import re
+import datetime
+import sys
+
+
+sys.path.insert(0, '/Fridge/users/eli/Code/3D_CNN')
+import torch_models
+
+
 
 def load_model_from_file():
+    
+    """
+    unpickles a saved model
+    """
+    
     root = tk.Tk()
     root.withdraw()
                 
@@ -25,7 +36,27 @@ def load_model_from_file():
     
     return model
 
+
+def switch_representations(to_switch):
+    
+    
+    """
+    Reverses the label string of an object
+    """
+    
+    switched = []
+    
+    for item in to_switch:
+        item.label = item.label[::-1]
+        switched.append(item)
+
+    return switched
+
 def get_longest_video(list_videos):
+    
+    """
+    Returns length of the longest video in the list of videos
+    """
     
     max_length = 0
     
@@ -35,6 +66,10 @@ def get_longest_video(list_videos):
     return max_length
 
 def cut_frame(full_frame, width, heigth, upper_left_anker):
+    
+    """
+    cuts an image to the given size
+    """
     
     anker_x = upper_left_anker[0]
     anker_y = upper_left_anker[1]
@@ -52,13 +87,11 @@ def cut_frame(full_frame, width, heigth, upper_left_anker):
                 
     return np.asarray(new_frame)
 
-def tensor_to_numpy(tensor):
-    out = tensor.cpu().detach().numpy()
-    out = out[0]
-    out = out[0]
-    return out
-
 def show_video_frames(np_array, title):
+    
+    """
+    plots each frame of a video
+    """
     
     if len(np_array.shape) == 3:
         counter = 0
@@ -71,6 +104,10 @@ def show_video_frames(np_array, title):
         raise ValueError("Dimensions of the input has to be 3, got dim: " + str(len(np_array.shape)) + " instead")
 
 def get_total_var(array_original, array_reconstructed):
+    
+    """
+    Returns the difference between two videos
+    """
     
     total_err = 0
     
@@ -94,6 +131,10 @@ def get_total_var(array_original, array_reconstructed):
 
 def mse(imageA, imageB):
     
+    """
+    Returns the mse difference between two images
+    """
+    
     imageA = np.asarray(imageA)
     imageB = np.asarray(imageB)
     err = np.sum((imageA.astype("float") - imageB.astype("float")) ** 2)
@@ -102,6 +143,10 @@ def mse(imageA, imageB):
     return err
 
 def get_model_params(params): 
+    
+    """
+    Returns parameter values of a model
+    """
     
     values = []
     
@@ -117,6 +162,10 @@ def get_model_params(params):
     return values        
 
 def strip_string(string, keep_number=False):
+    
+    """
+    Strips special characters from a string
+    """
     
     out = ""
     
@@ -134,9 +183,9 @@ def strip_string(string, keep_number=False):
     return out
 
 def format_string(string):
-    
-    # From WORD(1) to WORD1
-    
+    """
+    Formats a string from WORD(1) to WORD1
+    """
     out = ""
 
     for char in string:
@@ -147,6 +196,10 @@ def format_string(string):
     return out
 
 def get_MPD_group(phoneme):
+    
+    """
+    Returns group index for each phoneme
+    """
     
     phoneme = strip_string(phoneme.upper())
     
@@ -172,6 +225,10 @@ def get_MPD_group(phoneme):
     raise Exception("Phoneme " + str(phoneme) + " was not found in any groups")
     
 def get_MPD(phonemes_a, phonemes_b):
+    
+    """
+    Returns substitution cost for each group combination
+    """
     
     cost_matrix = np.array([
         [0, 2, 1, 1, 1, 2, 1, 1, 1],
@@ -212,7 +269,10 @@ def get_MPD(phonemes_a, phonemes_b):
     return matrix[len(phonemes_a)][len(phonemes_b)]
         
 def get_pld(phonemes_a, phonemes_b):
-    #gets phonemic levenshtein distance
+    
+    """
+    Returns the phonemic levenshtein distance between two sets of phonemes
+    """
     
     len_a = len(phonemes_a)
     len_b = len(phonemes_b)
@@ -229,10 +289,82 @@ def get_pld(phonemes_a, phonemes_b):
                                d[i - 1][j - 1] + substitutionCost))
     return d[-1][-1]
     
-    
 
-def log_training(original, reconstructed, train_loss, validation_loss, test_loss, model_name, bs, pt, lr, wd, ne, opt, lf, dl, name, extra_info=False):
-    #Big ugly function that creates the excell sheet for all the logging
+
+def count_syllables(word):
+    
+    """
+    Returns number of syllables for a word
+    """
+    
+    return len(
+        re.findall('(?!e$)[aeiouy]+', word, re.I) +
+        re.findall('^[^aeiouy]*e$', word, re.I)
+    )
+
+                    
+            
+def get_most_char_and_phonemes(data):
+    
+    """
+    Returns the length of the longest word (most characters) and longest set of phonemes (most phonemes) 
+    present in the data
+    """
+    
+    most_characters = 0
+    most_phonemes = 0
+    
+    for word in data:
+        
+        if len(word.char_ohe) > most_characters: most_characters = len(word.char_ohe)
+        if isinstance(word.phoneme_ohe, (bool)):
+            do = 'nothing'
+        else:
+            if len(word.phoneme_ohe) > most_phonemes: most_phonemes = len(word.phoneme_ohe)
+            
+    return most_characters, most_phonemes
+
+def log_clusters(model, all_clusters, all_medoids, sc):
+    
+    """
+    Logs the clustering operations and evaluation to an excell file
+    """
+    
+    to_concat = []
+    to_concat.append(pd.DataFrame(sc))
+    for u in range(0, len(all_clusters)):
+        
+         
+         syllables = u
+         clusters = all_clusters[u]
+         medoids = all_medoids[u]
+         
+         if len(clusters) > 0:
+             
+             to_concat.append(pd.DataFrame([str(u) + " Syllables"]))
+             
+             to_concat.append(pd.DataFrame(["Cluster 0", ["Medoid", medoids[0]], ["Cluster members", clusters[0]]]))
+             for v in range(1, len(clusters)):
+                 to_concat.append(pd.DataFrame(["Cluster " + str(v), ["Medoid", medoids[v]], ["Cluster members", clusters[v]]]))
+         to_concat.append(pd.DataFrame(["", "", ""]))  
+  
+    to_write = pd.concat(to_concat)
+    
+    now = datetime.datetime.now()
+    
+    dt_string = now.strftime("%d-%m-%Y_%H-%M-%S")
+    
+    writer = pd.ExcelWriter('/Fridge/users/eli/Code/ANALYZER/logs/Cluster_generation_' + model.name + "_" + dt_string + '.xlsx', engine = 'xlsxwriter')
+    to_write.to_excel(writer, sheet_name='Sheet1')
+    writer.save()
+    
+    
+    
+def log_training(bns, original, reconstructed, train_loss, validation_loss, test_loss, model_name, bs, pt, lr, wd, ne, opt, lf, dl, name, extra_info=False):
+    
+    """
+    logs the model training and testing information to an excell file
+    """
     
     indices = ['C',  'K', 'S', 'AC', 'AK', 'AS', 'BC', 'BK', 'BS', 'CC', 'CK', 'CS', 'DC', 'DK', 'DS', 'EC', 'EK', 'ES', 'FC', 'FK', 'FS']
     
@@ -253,7 +385,7 @@ def log_training(original, reconstructed, train_loss, validation_loss, test_loss
     
     if len(original) == len(reconstructed):
         
-        writer = pd.ExcelWriter('/Fridge/users/eli/Code/LSTM/logs/' + model_name + "_" + str(pt) + ',e=' + str(ne) + ",lr=" + str(lr) + "bs=" + str(bs) + "_" + str(dt_string) + '.xlsx', engine = 'xlsxwriter')
+        writer = pd.ExcelWriter('/Fridge/users/eli/Code/LSTM/logs/' + model_name + "(" + str(bns) + ")_" + str(pt) + ',e=' + str(ne) + ",lr=" + str(lr) + "bs=" + str(bs) + "_" + str(dt_string) + '.xlsx', engine = 'xlsxwriter')
         info.to_excel(writer, sheet_name='Sheet1')
         worksheet = writer.sheets['Sheet1']
 

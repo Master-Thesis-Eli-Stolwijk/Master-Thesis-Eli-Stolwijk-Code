@@ -1,8 +1,22 @@
 import analysis_tools as Analyzer
 import pickle
 import sys
+import numpy as np
+import pandas as pd
+
+import matplotlib.pyplot as plt
+from sklearn_extra.cluster import KMedoids
+from sklearn.datasets import make_blobs
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+from sklearn.preprocessing import StandardScaler
+from sklearn_extra.cluster import KMedoids
+from sklearn.metrics import silhouette_score
  
-# adding Folder_2 to the system path
+sys.path.insert(0, '/Fridge/users/eli/Code/ANALYZER')
+from Condenser import Condenser
+import cluster_tools
+
 sys.path.insert(0, '/Fridge/users/eli/Code/UTIL')
 import Util
 
@@ -11,12 +25,18 @@ participant = 'F1'
 
 def get_eval_loader(model_mode, participant):
     
+    """
+    Returns the appropraite data loader given the type of model
+    """
+    
+    if model_mode == 'GRU':
+        path = "/Fridge/users/eli/Code/LSTM/files/pickled_files/models/LSTM_np_words_cut_[47, 47]_" + participant
     if model_mode == 'LSTM':
         path = "/Fridge/users/eli/Code/LSTM/files/pickled_files/models/LSTM_np_words_cut_[47, 47]_" + participant
     if model_mode == '3DCNN':
         path = "/Fridge/users/eli/Code/3D_CNN/files/pickled_files/np_words_cut_geq_5_leq_20_" + participant
     
-    if model_mode == 'LSTM':
+    if model_mode == 'LSTM' or model_mode == 'GRU':
         sys.path.insert(0, '/Fridge/users/eli/Code/LSTM')
         import data_loaders
         data_loader = data_loaders.LSTM_loader(participant, 1, 0.9, [47,47])
@@ -31,31 +51,136 @@ def get_eval_loader(model_mode, participant):
     
     return eval_loader
 
-def get_data(path):
-    with open(path, "rb") as fp:   # Unpickling
-        words = pickle.load(fp)
-    return words
 
-def get_all_model_correlations(model_mode, verbose):
+def get_representations(model, model_mode, loader):
+    
+    """
+    Returns model embeddings for all data points
+    """
+    
+    con = Condenser()
+    
+    representations = con.condense(loader, model_mode, model)
+    
+    representations = Util.switch_representations(representations)
+    
+    representations.sort(key=lambda x: x.label, reverse=True)
+    
+    representations = Util.switch_representations(representations)
+    
+    return representations
+
+
+def get_ema_correlations(model_mode, verbose):
+    
+    """
+    Returns the correlations between the model embeddings and the EMA data
+    """
     
     eval_loader = get_eval_loader(model_mode, participant)
     
     model = Util.load_model_from_file()
     
-    Analyzer.get_all_correlations(model, model_mode, eval_loader, verbose, ['pl', 'mp'])
+    representations = get_representations(model, model_mode, eval_loader)
+    
+    _, MRI_matrices = Analyzer.get_all_correlations(model, model_mode, representations, False, ['pl'])
+
+    to_concat = []
+    
+    for u in range(0, len(MRI_matrices)):
+        
+        path = "/Fridge/users/julia/projects_STUDENTS/EvanKemmer/results/trans_mfa_normalize_false_pad_sides/f1_similarity_mat_nsyl" + str(u+1) + ".csv"
+        
+        to_concat.append(Analyzer.get_EMA_correlation(MRI_matrices[u], path, verbose))
+        
+    result = pd.concat(to_concat)
+    
+    print(result)
+    return result
+
+def get_model_correlations(model_mode, verbose, comparisons):
+    
+    """
+    Returns the correlations of the model embeddings with the given comparison proxies.
+    comparisons argument should be a list of strings. Valid string: 'pl', 'mp', 'l'
+    -'l': levenshtein distance
+    -'pl': phonemic levenshtein distance
+    -'mp': mouth position distance
+    
+    """
+    
+    
+    eval_loader = get_eval_loader(model_mode, participant)
+    
+    model = Util.load_model_from_file()
+    
+    representations = get_representations(model, model_mode, eval_loader)
+    
+    Analyzer.get_all_correlations(model, model_mode, representations, verbose, comparisons)
 
 def correlate_two_model_representations(model_mode):
+    
+    """
+    Method that returns the correlations between two model embeddings per syllable count
+    """
     
     eval_loader = get_eval_loader(model_mode, participant)
     
     model_a = Util.load_model_from_file()
     model_b = Util.load_model_from_file()
     
-    _, MRI_matrices_a = Analyzer.get_all_correlations(model_a, model_mode, eval_loader, False, ['mp'])
-    _, MRI_matrices_b = Analyzer.get_all_correlations(model_b, model_mode, eval_loader, False, ['mp'])
+    representations_a = get_representations(model_a, model_mode, eval_loader)
+    representations_b = get_representations(model_b, model_mode, eval_loader)
+    
+    _, MRI_matrices_a = Analyzer.get_all_correlations(model_a, model_mode, representations_a, False, ['mp'])
+    _, MRI_matrices_b = Analyzer.get_all_correlations(model_b, model_mode, representations_b, False, ['mp'])
     
     results = Analyzer.get_MRI_Matrices_correlation(MRI_matrices_a, MRI_matrices_b, True)
     print(results)
     return results
 
-get_all_model_correlations('LSTM', True)
+def get_clusters_per_syllables(model_mode, num_clusters, alg, verbose):
+    
+    """
+    Method that returns the clusters generated by the given clustering algorithm
+    """
+    
+    model = Util.load_model_from_file()
+    eval_loader = get_eval_loader(model_mode, participant)
+    
+    representations = get_representations(model, model_mode, eval_loader)
+    
+    syllable_groups = [[] for _ in range(0,20)]
+    syllable_group_medoids = [[] for _ in range(0,20)]
+    syllable_group_clusters = [[] for _ in range(0,20)]
+    silhouette_scores = []
+    
+    for item in representations:
+        syllable_count = Util.count_syllables(Util.strip_string(item.label))
+        syllable_groups[syllable_count].append(item)
+    
+    
+    for u in range(0, len(syllable_groups)):
+        if len(syllable_groups[u]) > 0:
+            if alg == 'KMedoids':
+                clusters, medoids,score = cluster_tools.get_kmedoids_clusters(model_mode, syllable_groups[u], num_clusters)
+                syllable_group_medoids[u] = medoids
+                syllable_group_clusters[u] = clusters 
+                silhouette_scores.append(score)
+    
+    Util.log_clusters(model, syllable_group_clusters, syllable_group_medoids, silhouette_scores)
+    
+    if verbose == True:
+        
+        for u in range(0, len(syllable_group_medoids)):
+            if len(syllable_group_medoids[u]) > 0:
+                print("These are the medoids for the words with " + str(u) + " syllables:")
+                print(syllable_group_medoids[u])
+    
+    
+    
+    return syllable_group_medoids
+    
+#get_model_correlations('3DCNN', True, ['pl'])
+#get_clusters_per_syllables('GRU', 10, 'KMedoids', True)
+get_ema_correlations('3DCNN', False)
