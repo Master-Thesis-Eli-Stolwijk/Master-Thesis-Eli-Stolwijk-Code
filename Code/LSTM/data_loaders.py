@@ -151,7 +151,7 @@ class LSTM_loader():
         clean_words = []
     
         for word in list_words:
-            if isinstance(word.phoneme_ohe, (bool)) or len(word.data) < 5:
+            if isinstance(word.phoneme_ohe, (bool)) or len(word.data) < 5 or len(word.data) > 35:
                 do = 'nothing'
             else:
                 clean_words.append(word)
@@ -170,36 +170,23 @@ class LSTM_loader():
         
         train, test, val, ind, all_data = self.load_data(path)
         
-        train_loader = DataLoader(train,
-                              batch_size=self.batch_size,
-                              shuffle=True,
-                              num_workers=0,
-                              collate_fn=lambda batch: self.get_batch(batch))
-
-        test_loader = DataLoader(test,
-                                      batch_size=self.batch_size,
-                                      shuffle=True,
-                                      num_workers=0,
-                                      collate_fn=lambda batch: self.get_batch(batch))
+        train_loader = Batched_RNN_DataLoader(train, self.batch_size)
+        test_loader = Batched_RNN_DataLoader(test, self.batch_size)
+        val_loader = Batched_RNN_DataLoader(val, self.batch_size)
         
-        val_loader = DataLoader(val,
-                                      batch_size=self.batch_size,
-                                      shuffle=True,
-                                      num_workers=0,
-                                      collate_fn=lambda batch: self.get_batch(batch))
         ind_loader = DataLoader([ind],
                                       batch_size=1,
-                                      shuffle=True,
+                                      shuffle=False,
                                       num_workers=0,
                                       collate_fn=lambda batch: self.get_batch(batch))
         eval_loader = DataLoader(all_data,
                                       batch_size=1,
-                                      shuffle=True,
+                                      shuffle=False,
                                       num_workers=0,
                                       collate_fn=lambda batch: self.get_batch(batch))
         
         return train_loader, test_loader, val_loader, ind_loader, eval_loader
-       
+
     
 class Word: # this object stores the label, data and additional info such as the one hot encodings
     
@@ -311,3 +298,97 @@ class Word: # this object stores the label, data and additional info such as the
         
         return indicies[Util.strip_string(phoneme)]
         
+    
+class Batched_RNN_DataLoader:
+    
+    def __init__(self, data, batch_size):
+        self.batch_size = batch_size
+        self.data = data
+        self.ordered_data = self.order_data_on_length(data, True)
+        self.loaders, self.available_loaders = self.get_loaders(self.ordered_data)
+        self.length = sum(self.available_loaders)
+    
+    def reset(self):
+        
+        """
+        Reloads all loaders with a different random shuffle within their length groups
+        """
+        
+        self.ordered_data = self.order_data_on_length(self.data, True)
+        self.loaders, self.available_loaders = self.get_loaders(self.ordered_data)
+        self.length = sum(self.available_loaders)
+    
+    def get_batch(self):
+        
+        """
+        Returns a batch from a loader that still has unseen data 
+        """
+        
+        succes = False
+        
+        for u in range(0, len(self.available_loaders)):
+            if self.available_loaders[u] > 0:
+                succes = True
+                next_batch_data, next_batch_labels = next(self.loaders[u])
+                self.available_loaders[u] = self.available_loaders[u] - 1
+                break
+        
+        return next_batch_data, next_batch_labels
+        
+    def disect_batch(self, batch): 
+        
+        """
+        Returns data and labels of a batch seperately.
+        """
+        
+        data = []
+        labels = []
+        for item in batch:
+            
+            labels.append(item.label.strip())
+            
+            data.append(torch.tensor(np.array(item.data)))
+            
+        return data, labels
+    
+    def order_data_on_length(self, data, shuffle):
+        
+        """
+        Orders data on the length of the data attribute. In other words, orders on frame count
+        """
+        
+        ordered_by_length = [[] for i in range(36)]
+            
+        for item in data:
+            if len(item.data) >= 5 or len(item.data) <= 35:
+                ordered_by_length[len(item.data)].append(item)
+        
+        if shuffle == True:
+            for u in range(0, len(ordered_by_length)):
+                
+                random.shuffle(ordered_by_length[u])
+        
+        
+        return ordered_by_length
+    
+    def get_loaders(self, data):
+        
+        """
+        Creates an individual loader for each frame count group
+        """
+        
+        loaders = []
+        loader_counts = []
+        
+        for group in data:
+            if len(group) > 0:
+                loader = DataLoader(group,
+                                      batch_size=self.batch_size,
+                                      shuffle=True,
+                                      num_workers=0,
+                                      collate_fn=lambda batch: self.disect_batch(batch),
+                                      drop_last = False)
+                loaders.append(iter(loader))
+                loader_counts.append(math.ceil(len(iter(loader))))
+                
+        return loaders, loader_counts

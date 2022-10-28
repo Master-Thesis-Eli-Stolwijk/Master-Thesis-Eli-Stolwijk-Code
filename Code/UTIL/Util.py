@@ -8,6 +8,7 @@ import pickle
 import re
 import datetime
 import sys
+from scipy.spatial.distance import cdist
 
 
 sys.path.insert(0, '/Fridge/users/eli/Code/3D_CNN')
@@ -324,7 +325,16 @@ def get_most_char_and_phonemes(data):
             
     return most_characters, most_phonemes
 
-def log_clusters(model, all_clusters, all_medoids, sc):
+def closest_point(pt, others):
+    
+     """
+     Returns the data point that is closest to the specified coordinate
+     """
+     do = 0
+     distances = cdist(pt, others)
+     return others[distances.argmin()]
+
+def log_clusters(model, alg,  all_clusters, all_medoids, sc):
     
     """
     Logs the clustering operations and evaluation to an excell file
@@ -354,7 +364,7 @@ def log_clusters(model, all_clusters, all_medoids, sc):
     
     dt_string = now.strftime("%d-%m-%Y_%H-%M-%S")
     
-    writer = pd.ExcelWriter('/Fridge/users/eli/Code/ANALYZER/logs/Cluster_generation_' + model.name + "_" + dt_string + '.xlsx', engine = 'xlsxwriter')
+    writer = pd.ExcelWriter('/Fridge/users/eli/Code/ANALYZER/logs/Cluster_generation_(' + str(alg) + ")_"+ model.name + "_" + dt_string + '.xlsx', engine = 'xlsxwriter')
     to_write.to_excel(writer, sheet_name='Sheet1')
     writer.save()
     

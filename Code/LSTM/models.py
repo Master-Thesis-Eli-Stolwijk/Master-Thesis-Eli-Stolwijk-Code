@@ -692,21 +692,23 @@ class Temporal_EncDec_G6(nn.Module):
 
 class ST_AutoEncoder_G7(nn.Module):
     
-    def __init__(self, in_channel, bottle_neck_size):
+    def __init__(self, in_channel, bottle_neck_size, drop_rate):
         super(ST_AutoEncoder_G7, self).__init__()
         
         self.in_channel = in_channel
         self.name = "G7"
-        self.description = "G1 with hidden dim 8"
+        self.description = "G1 with hidden dim 16"
         self.bottle_neck_size = bottle_neck_size
+        self.dropout_rate = drop_rate
         
         # Spatial Encoder
         self.spatial_encoder = nn.Sequential(
             nn.Conv3d(in_channels=self.in_channel, out_channels=128, kernel_size=(1,3,3), stride=(1,2,2)),
             nn.ReLU(),
             nn.Conv3d(in_channels=128, out_channels=16, kernel_size=(1,3,3), stride=(1,2,2)),
-            nn.ReLU()            
+            nn.ReLU()
         )
+        
                 
         # Temporal Encoder & Decoder
         self.temporal_encoder_decoder = Temporal_EncDec_G7()
@@ -742,4 +744,4 @@ class Temporal_EncDec_G7(nn.Module):
         layer_output_list, hidden_state_1 = self.convgru_1(x)
         layer_output_list, hidden_state_2 = self.convgru_2(layer_output_list[0], hidden_state_1[0])
         
-        return layer_output_list[0], hidden_state_1
+        return layer_output_list[0], torch.flatten(hidden_state_1[0], start_dim=1)

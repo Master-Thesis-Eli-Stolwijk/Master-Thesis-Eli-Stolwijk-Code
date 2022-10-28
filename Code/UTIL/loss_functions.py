@@ -69,7 +69,7 @@ class PLD_Loss(nn.Module):
     
        if lev_x.size() != lev_y.size():
            debug = 0
-           raise Exception("Two lev samples have to be same size, got size1=" + str(lev_x.size()) + ", size2=" + str(lev_y.size()))
+           raise Exception("Two lev samples have to be same size, got size1=" + str(lev_x.size()) + ", size2=" + str(lev_y.size())) 
        
        video_distance = self.torch_loss_function(sample1, sample2)
        
@@ -136,3 +136,32 @@ class Vanilla_Loss(nn.Module):
        return video_distance, dummy, dummy
 
 
+class PLD_only_Loss(nn.Module):
+    
+   def __init__(self, vector_size, weight, device):
+       super(PLD_only_Loss, self).__init__()
+       self.torch_loss_function = torch.nn.MSELoss()
+       self.w = weight
+       self.device = device
+       self.vs = vector_size
+       self.name = "Phonemic Levenshtein Distance loss function"
+    
+   def get_dummy(self, representations):
+       
+       lev_x = torch.cdist(representations, representations, p=2).to(self.device).to(dtype=torch.float)
+       
+       loss = self.torch_loss_function(lev_x, lev_x)
+       
+       return loss
+       
+   def forward(self, labels, representations): #, lev_diff):
+      
+       lev_y = torch.from_numpy(np.array(Analyzer.get_phonemic_levenshtein_matrix_from_tensor(labels))).to(self.device).to(dtype=torch.float)
+                        
+       lev_x = torch.cdist(representations, representations, p=2).to(self.device).to(dtype=torch.float)
+       
+       loss = self.torch_loss_function(lev_x, lev_y)
+       
+       custom_part = torch.mul(loss, self.w)
+       
+       return loss
