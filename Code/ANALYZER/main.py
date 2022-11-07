@@ -335,5 +335,5 @@ def get_clusters_per_syllables(model_mode, alg, verbose, num_clusters=None):
     return syllable_group_representatives
     
 #get_model_correlations('3DCNN', True, ['pl'])
-get_clusters_per_syllables('3DCNN', 'KMeans', True)
-#get_ema_correlations('GRU', False)
+#get_clusters_per_syllables('3DCNN', 'KMeans', True)
+get_ema_correlations('GRU', False)

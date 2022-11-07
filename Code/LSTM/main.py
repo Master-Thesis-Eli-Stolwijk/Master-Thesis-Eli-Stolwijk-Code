@@ -227,7 +227,8 @@ def save_and_log_model(model, train_losses, val_losses, test_loss, mse_loss, pld
     
     ####################################################################################
     
-    extra_info = pd.DataFrame([['description', model.description], ['loss function', loss_function.name], 
+    extra_info = pd.DataFrame([['description', model.description], ['loss function', loss_function.name],
+                               ['Custom loss weight', c_weight], 
                                ['bottleneck size', model.bottle_neck_size], ['seed', seed], ['MSE loss', mse_loss],
                                ['PLD loss', pld_loss]])
     
@@ -236,16 +237,16 @@ def save_and_log_model(model, train_losses, val_losses, test_loss, mse_loss, pld
         print("Saved model")
         
     print("Saving logs...")
-    Util.log_training(model.bottle_neck_size, ind_batch.squeeze().cpu().detach().numpy(), reconstructed.squeeze().cpu().detach().numpy(), train_losses, val_losses, test_loss, model.name, batch_size, participant, learning_rate, weight_decay, best_epoch, optimizer, loss_function, loader.name, dt_string)    
+    Util.log_training(model.bottle_neck_size, ind_batch.squeeze().cpu().detach().numpy(), reconstructed.squeeze().cpu().detach().numpy(), train_losses, val_losses, test_loss, model.name, batch_size, participant, learning_rate, weight_decay, best_epoch, optimizer, loss_function, loader.name, dt_string, extra_info)    
 
 seed = 0
 set_seed(seed)
 
 participant = 'F1'
 
-batch_size = 10
+batch_size = 50
 shape = [47, 47]
-n_epochs = 300
+n_epochs = 200
 learning_rate = 0.001
 weight_decay = 1e-8
 
@@ -255,18 +256,20 @@ parent_dir = os.path.join("/Fridge/users/eli/Data_OG", participant)
 directory_video = participant + "_video"
 video_path = os.path.join(parent_dir, directory_video)
 
-#custom_weights = [0, 0.1, 0.5, 1, 1.5, 3, 5, 10]
 
-custom_weights = [10]
+
+custom_weights = [1,10]
+
 
 
 for u in range (0, len(custom_weights)):
     
-    loss_function = PLD_Loss(custom_weights[u], device)
+    c_weight = custom_weights[u]
+    loss_function = PLD_Loss(c_weight, device)
     
     loader = LSTM_loader(participant, batch_size, 0.9, shape)
     
-    model = models.ST_AutoEncoder_G7(1, 16*11*11, 0)
+    model = models.ST_AutoEncoder_G8(1, 100)
     model.to(device)
     
     train_loader, test_loader, val_loader, ind_loader, eval_loader = loader.get_loaders(video_path)

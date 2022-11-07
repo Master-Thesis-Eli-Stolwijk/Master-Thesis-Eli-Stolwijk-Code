@@ -21,7 +21,7 @@ from loss_functions import MPD_Loss
 from loss_functions import per_frame_loss
 
 
-def train_model(model, train_loader, val_loader, bottle_neck_size, drop_out_rate):
+def train_model(model, train_loader, val_loader):
 
     """
     Trains the model on the train set, validates on the validation set and picks the best performing model 
@@ -169,7 +169,7 @@ def test_model(model, test_loader, loss_function):
     """
     
     
-    FrameLoss = per_frame_loss()
+ #   FrameLoss = per_frame_loss()
     
     with torch.no_grad():
             
@@ -188,7 +188,7 @@ def test_model(model, test_loader, loss_function):
             
             output, test_representations = model(test_batch.to(device).to(dtype=torch.float), test_phoneme_ohe_batch.to(device))
             
-            FrameLoss.update(output.cpu(), og_test_batch)
+           # FrameLoss.update(output.cpu(), og_test_batch)
             test_torch_loss,_,_ = loss_function(output, test_batch.to(device).to(dtype=torch.float), test_labels, test_representations)
             test_loss_total += test_torch_loss
                 
@@ -196,8 +196,8 @@ def test_model(model, test_loader, loss_function):
         test_loss = test_loss_total / len(test_iter)
         
         print("Test loss was: " + str(test_loss))
-        print("Average loss per frame:")
-        print(FrameLoss.get_average_loss_per_frame())
+       # print("Average loss per frame:")
+       # print(FrameLoss.get_average_loss_per_frame())
         
         return test_loss
 
@@ -207,7 +207,7 @@ def train_test_log(model):
     method that calls all needed functions to train, test, log and save the model
     """
 
-    model, train_loss, val_loss, optimizer, epoch = train_model(train_loader, val_loader)
+    model, train_loss, val_loss, optimizer, epoch = train_model(model, train_loader, val_loader)
                 
     test_loss  = test_model(model, test_loader, loss_function)            
     
@@ -256,11 +256,11 @@ def save_and_log_model(model, lv_weight, epoch, test_loss, train_loss, val_loss,
     Util.log_training(model.bottleneck_size, ind_batch.squeeze().squeeze().cpu().detach().numpy(), output.squeeze().squeeze().cpu().detach().numpy(), train_loss, val_loss, test_loss, model.name, batch_size, participant, learning_rate, weight_decay, (epoch + 1), optimizer, loss_function, loader.name, dt_string, extra_info=extra)    
 
 
-set_seed(5)
+set_seed(0)
 
-participants = ['F1']
+participants = ['F3']
     
-lev_weights = [3]
+lev_weights = [1]
 
 drop_out_rate = 0
 
@@ -279,7 +279,7 @@ for u in range(0, len(participants)):
         seq_len = 20
         batch_size = 10
         shape = [48, 44]
-        n_epochs = 100
+        n_epochs = 150
         learning_rate = 0.001
         weight_decay = 1e-8
         loss_function = PLD_Loss(lv_weight, device)
