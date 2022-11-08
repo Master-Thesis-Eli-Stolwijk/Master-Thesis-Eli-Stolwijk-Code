@@ -8,11 +8,9 @@ import nltk
 from torch.utils.data import DataLoader
 import sys
 
-sys.path.insert(0, '/Fridge/users/eli/Code/3D_CNN')
-import Padder
-
 sys.path.insert(0, '/Fridge/users/eli/Code/UTIL')
 import Util
+import Padder
 
 class julia_loader():
     

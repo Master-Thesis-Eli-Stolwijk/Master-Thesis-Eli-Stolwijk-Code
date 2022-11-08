@@ -907,106 +907,61 @@ class Temporal_EncDec_G9(nn.Module):
         layer_output_list, hidden_state_2 = self.convgru_2(layer_output_list[0], decoded_hidden_state)
         
         return layer_output_list[0], encoded
-    
-    
 
-class ST_AutoEncoder_G51(nn.Module):
+class ST_AutoEncoder_G81(nn.Module):
     
-    def __init__(self, in_channel, bottle_neck_size): 
-        super(ST_AutoEncoder_G51, self).__init__()
+    def __init__(self, in_channel, bottle_neck_size):
+        super(ST_AutoEncoder_G81, self).__init__()
         
         self.in_channel = in_channel
-        self.name = "V1 (GRU_adaptation)"
-        self.description = "Attempt at using the 3D CNN architecture for the GRU, does not learn on seed 0 and 1"
+        self.name = "G81"
+        self.description = "G8 but with three rnn layers"
+        self.bottle_neck_size = bottle_neck_size
         
-        self.encoder_part1 = torch.nn.Sequential(
-            
-            torch.nn.Conv3d(1, 64, kernel_size=(3, 3, 3), padding=0),
-            torch.nn.ReLU(),
-            torch.nn.Conv3d(64, 128, kernel_size=(1, 3, 3), padding=0),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool3d((1, 2, 2), return_indices = True)
+        
+        # Spatial Encoder
+        self.spatial_encoder = nn.Sequential(
+            nn.Conv3d(in_channels=self.in_channel, out_channels=128, kernel_size=(1,3,3), stride=(1,2,2)),
+            nn.ReLU(),
+            nn.Conv3d(in_channels=128, out_channels=64, kernel_size=(1,3,3), stride=(1,2,2)),
+            nn.ReLU()            
         )
+                
+        # Temporal Encoder & Decoder
+        self.temporal_encoder_decoder = Temporal_EncDec_G81(bottle_neck_size)
         
-        self.encoder_part2 = torch.nn.Sequential(
-            
-            torch.nn.Conv3d(128, 64, kernel_size=(1, 3, 3), padding=0),
-            torch.nn.ReLU(),
-            torch.nn.Conv3d(64, 32, kernel_size=(3, 3, 3), padding=0),
-            torch.nn.ReLU(),
-            torch.nn.MaxPool3d((1, 2, 2), return_indices = True)
+        # Spatial Decoder
+        self.spatial_decoder = nn.Sequential(
+            nn.ConvTranspose3d(in_channels=64, out_channels=128, kernel_size=(1,3,3), stride=(1,2,2)),
+            nn.ReLU(),
+            nn.ConvTranspose3d(in_channels=128, out_channels=1, kernel_size=(1,3,3), stride=(1,2,2)),
+            nn.ReLU()
         )
-        
-        
-        self.temporal_encoder_decoder = Temporal_EncDec_G51(bottle_neck_size)
-        
-        self.unpool1 = torch.nn.MaxUnpool3d(kernel_size=(1, 2, 2))
-        
-        self.decoder_part1 = torch.nn.Sequential(
-            
-            torch.nn.ConvTranspose3d(32, 64, kernel_size=(3, 3, 3), padding=0),
-            torch.nn.ReLU(),
-            torch.nn.ConvTranspose3d(64, 128, kernel_size=(1, 3, 3), padding=0),
-            torch.nn.ReLU(),
-            )
-        
-        self.unpool2 = torch.nn.MaxUnpool3d(kernel_size=(1, 2, 2))
-        
-        self.decoder_part2 = torch.nn.Sequential(
-            
-            torch.nn.ConvTranspose3d(128, 64, kernel_size=(1, 3, 3), padding=0),
-            torch.nn.ReLU(),
-            torch.nn.ConvTranspose3d(64, 1, kernel_size=(3, 3, 3), padding=0),
-            torch.nn.ReLU()
-            
-        )
-    
-    def encoder(self, x):
-        
-        encoded, indices1 = self.encoder_part1(x)
-        
-        encoded, indices2 = self.encoder_part2(encoded)
-        
-        return encoded, indices1, indices2
-    
-    def decoder(self, encoded, indices1, indices2):
-        
-        unpooled1 = self.unpool1(encoded, indices2)
-        
-        decoded = self.decoder_part1(unpooled1)
-        
-        unpooled2 = self.unpool2(decoded, indices1)
-        
-        decoded = self.decoder_part2(unpooled2)
-        
-        return decoded
         
     def forward(self, x):
+        # x : (N, C, T, H, W) / T : sequence length(or D)        
+        h = self.spatial_encoder(x)
         
-        h, indices1, indices2 = self.encoder(x)
-        
-        h = h.permute(0,2,1,3,4)
-        
+        h = h.permute(0,2,1,3,4)  # (N, C, T, H, W) -> (N, T, C, H, W) 
         h_hat, bottleneck = self.temporal_encoder_decoder(h)
         
-        h_hat = h_hat.permute(0,2,1,3,4)
-        
-        decoded = self.decoder(h_hat, indices1, indices2)
-        
-        return decoded, bottleneck
-
-class Temporal_EncDec_G51(nn.Module):
+        h_hat = h_hat.permute(0,2,1,3,4)  # (N, T, C, H, W) -> (N, C, T, H, W) 
+        output = self.spatial_decoder(h_hat)
+        return output, bottleneck
+    
+    
+class Temporal_EncDec_G81(nn.Module):
     def __init__(self, bottle_neck_size):
-        super(Temporal_EncDec_G51, self).__init__()
+        super(Temporal_EncDec_G81, self).__init__()
         
-        self.convgru_1 = ConvGRU(input_dim=32, hidden_dim=32, kernel_size=3, num_layers=1, bias=True)
-        self.convgru_2 = ConvGRU(input_dim=32, hidden_dim=32, kernel_size=3, num_layers=1, bias=True)
+        self.convgru_1 = ConvGRU(input_dim=64, hidden_dim=64, kernel_size=3, num_layers=1, bias=True)
+        self.convgru_2 = ConvGRU(input_dim=64, hidden_dim=64, kernel_size=3, num_layers=1, bias=True)
         
         self.flat = torch.nn.Flatten()
         
-        self.fc1 = torch.nn.Linear(in_features=2304,out_features=bottle_neck_size)
+        self.fc1 = torch.nn.Linear(in_features=7744,out_features=bottle_neck_size)
         
-        self.fc2 =  torch.nn.Linear(in_features=bottle_neck_size, out_features=2304)
+        self.fc2 =  torch.nn.Linear(in_features=bottle_neck_size, out_features=7744)
         
         self.unflat = torch.nn.Unflatten(1, unflattened_size=(0,0,0))
         
@@ -1022,6 +977,99 @@ class Temporal_EncDec_G51(nn.Module):
         flat_h = self.flat(h)
         
         encoded = self.fc1(flat_h)
+        
+        decoded = torch.tanh(self.fc2(encoded))
+        
+        self.unflat.unflattened_size = (unflat_shape_h[1], unflat_shape_h[2], unflat_shape_h[3])
+        
+        decoded_hidden_state = self.unflat(decoded)
+        
+        layer_output_list, hidden_state_2 = self.convgru_2(layer_output_list[0], decoded_hidden_state)
+        
+        return layer_output_list[0], encoded
+    
+
+class ST_AutoEncoder_GP8(nn.Module):
+    
+    def __init__(self, in_channel, bottle_neck_size):
+        super(ST_AutoEncoder_GP8, self).__init__()
+        
+        self.in_channel = in_channel
+        self.name = "GP8"
+        self.description = "G8 but with phoneme datastream"
+        self.bottle_neck_size = bottle_neck_size
+        
+        
+        # Spatial Encoder
+        self.spatial_encoder = nn.Sequential(
+            nn.Conv3d(in_channels=self.in_channel, out_channels=128, kernel_size=(1,3,3), stride=(1,2,2)),
+            nn.ReLU(),
+            nn.Conv3d(in_channels=128, out_channels=32, kernel_size=(1,3,3), stride=(1,2,2)),
+            nn.ReLU()            
+        )
+                
+        # Temporal Encoder & Decoder
+        self.temporal_encoder_decoder = Temporal_EncDec_GP8(bottle_neck_size)
+        
+        # Spatial Decoder
+        self.spatial_decoder = nn.Sequential(
+            nn.ConvTranspose3d(in_channels=32, out_channels=128, kernel_size=(1,3,3), stride=(1,2,2)),
+            nn.ReLU(),
+            nn.ConvTranspose3d(in_channels=128, out_channels=1, kernel_size=(1,3,3), stride=(1,2,2)),
+            nn.ReLU()
+        )
+        
+    def forward(self, x, y):
+        # x : (N, C, T, H, W) / T : sequence length(or D)        
+        h = self.spatial_encoder(x)
+        
+        h = h.permute(0,2,1,3,4)  # (N, C, T, H, W) -> (N, T, C, H, W) 
+        h_hat, bottleneck = self.temporal_encoder_decoder(h, y)
+        
+        h_hat = h_hat.permute(0,2,1,3,4)  # (N, T, C, H, W) -> (N, C, T, H, W) 
+        output = self.spatial_decoder(h_hat)
+        return output, bottleneck
+    
+    
+class Temporal_EncDec_GP8(nn.Module):
+    def __init__(self, bottle_neck_size):
+        super(Temporal_EncDec_GP8, self).__init__()
+        
+        self.convgru_1 = ConvGRU(input_dim=32, hidden_dim=32, kernel_size=3, num_layers=1, bias=True)
+        self.convgru_2 = ConvGRU(input_dim=32, hidden_dim=32, kernel_size=3, num_layers=1, bias=True)
+        
+        self.flat = torch.nn.Flatten()
+        
+        self.flat2 = torch.nn.Flatten()
+        
+        self.fc1 = torch.nn.Linear(in_features=4457,out_features=bottle_neck_size)
+        
+        self.fc2 =  torch.nn.Linear(in_features=bottle_neck_size, out_features=3872)
+        
+        self.unflat = torch.nn.Unflatten(1, unflattened_size=(0,0,0))
+        
+        self.relu = torch.nn.ReLU()
+        
+    def forward(self, x, y):
+        
+        layer_output_list, hidden_state_1 = self.convgru_1(x)
+        
+        h = hidden_state_1[0]
+        
+        unflat_shape_h = h.shape
+        
+        flat_h = self.flat(h)
+        
+        flat_y = self.flat2(y)
+        
+       # print("h")
+       # print(flat_h.shape)
+       # print("y")
+       # print(flat_y.shape)
+        
+        linear_input = torch.cat((flat_h, flat_y), 1)
+        
+        encoded = self.fc1(linear_input)
         
         decoded = torch.tanh(self.fc2(encoded))
         

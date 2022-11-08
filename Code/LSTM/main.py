@@ -48,12 +48,13 @@ def train_model(model, train_loader, val_loader):
                        
         for u in range(0, train_loader.length):
             
-            train_batch, train_labels = train_loader.get_batch()
+            train_batch, train_labels, train_phonemes = train_loader.get_random_batch()
             
             train_batch = torch.stack(train_batch)
             train_batch = train_batch.unsqueeze(1)
+            phoneme_ohe_batch = torch.stack(train_phonemes)
             
-            reconstructed, train_representations = model(train_batch.to(device).to(dtype=torch.float))
+            reconstructed, train_representations = model(train_batch.to(device).to(dtype=torch.float), phoneme_ohe_batch.to(device))
             
             train_batch_loss, mse_loss, pld_loss = loss_function(reconstructed, train_batch.to(device).to(dtype=torch.float), train_labels, train_representations)
                         
@@ -78,12 +79,13 @@ def train_model(model, train_loader, val_loader):
             
             for v in range(0, val_loader.length):
                 
-                val_batch, val_labels = val_loader.get_batch()
+                val_batch, val_labels, val_phonemes = val_loader.get_random_batch()
                 val_batch = torch.stack(val_batch)
                 val_batch = val_batch.unsqueeze(1)
+                val_phoneme_ohe_batch = torch.stack(val_phonemes)
                 
                 
-                reconstructed,val_representations = model(val_batch.to(device).to(dtype=torch.float))
+                reconstructed,val_representations = model(val_batch.to(device).to(dtype=torch.float), val_phoneme_ohe_batch.to(device))
                 
                 val_batch_loss, _, _ = loss_function(reconstructed, val_batch.to(device).to(dtype=torch.float), val_labels, val_representations)
             
@@ -165,11 +167,12 @@ def test_model(model, test_loader, loss_function):
         
         for v in range(0, test_loader.length):
             
-            test_batch, test_labels = test_loader.get_batch()
+            test_batch, test_labels, test_phonemes = test_loader.get_random_batch()
             test_batch = torch.stack(test_batch)
             test_batch = test_batch.unsqueeze(1)
+            test_phoneme_ohe_batch = torch.stack(test_phonemes)
             
-            reconstructed, test_representations = model(test_batch.to(device).to(dtype=torch.float))
+            reconstructed, test_representations = model(test_batch.to(device).to(dtype=torch.float), test_phoneme_ohe_batch.to(device))
             
             test_batch_loss, test_mse_loss, test_pld_loss = loss_function(reconstructed, test_batch.to(device).to(dtype=torch.float), test_labels, test_representations)
             
@@ -215,15 +218,16 @@ def save_and_log_model(model, train_losses, val_losses, test_loss, mse_loss, pld
             
     for u in range(0, len(ind_iter)):
     
-        ind_batch, ind_label = next(ind_iter)
+        ind_batch, ind_label, ind_phonemes = next(ind_iter)
         ind_batch = torch.stack(ind_batch)
         ind_batch = ind_batch.unsqueeze(1)
+        ind_phonemes = torch.stack(ind_phonemes)
     
     with torch.no_grad():
             
         model = model.eval()
         
-        reconstructed = model(ind_batch.to(device).to(dtype=torch.float))[0]
+        reconstructed = model(ind_batch.to(device).to(dtype=torch.float), ind_phonemes.to(device))[0]
     
     ####################################################################################
     
@@ -244,9 +248,9 @@ set_seed(seed)
 
 participant = 'F1'
 
-batch_size = 50
+batch_size = 10
 shape = [47, 47]
-n_epochs = 200
+n_epochs = 100
 learning_rate = 0.001
 weight_decay = 1e-8
 
@@ -258,7 +262,7 @@ video_path = os.path.join(parent_dir, directory_video)
 
 
 
-custom_weights = [1,10]
+custom_weights = [0.1, 0.25, 0.75, 1,5]
 
 
 
@@ -267,9 +271,9 @@ for u in range (0, len(custom_weights)):
     c_weight = custom_weights[u]
     loss_function = PLD_Loss(c_weight, device)
     
-    loader = LSTM_loader(participant, batch_size, 0.9, shape)
+    loader = LSTM_loader(participant, batch_size, 0.9, shape, 15)
     
-    model = models.ST_AutoEncoder_G8(1, 100)
+    model = models.ST_AutoEncoder_GP8(1, 100)
     model.to(device)
     
     train_loader, test_loader, val_loader, ind_loader, eval_loader = loader.get_loaders(video_path)

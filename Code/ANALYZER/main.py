@@ -39,7 +39,7 @@ def get_eval_loader(model_mode, participant):
     if model_mode == 'LSTM' or model_mode == 'GRU':
         sys.path.insert(0, '/Fridge/users/eli/Code/LSTM')
         import data_loaders
-        data_loader = data_loaders.LSTM_loader(participant, 1, 0.9, [47,47])
+        data_loader = data_loaders.LSTM_loader(participant, 1, 0.9, [47,47], 15)
         _,_,_,_, eval_loader = data_loader.get_loaders(path)
     if model_mode == '3DCNN':
         sys.path.insert(0, '/Fridge/users/eli/Code/3D_CNN')
@@ -336,4 +336,4 @@ def get_clusters_per_syllables(model_mode, alg, verbose, num_clusters=None):
     
 #get_model_correlations('3DCNN', True, ['pl'])
 #get_clusters_per_syllables('3DCNN', 'KMeans', True)
-get_ema_correlations('GRU', False)
+get_ema_correlations('GRU', True)

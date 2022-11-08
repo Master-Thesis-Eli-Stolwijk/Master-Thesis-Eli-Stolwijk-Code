@@ -6,23 +6,24 @@ import datetime
 import cv2
 import math
 import random
-import string
 import nltk
 from torch.utils.data import DataLoader
 import sys
 
 sys.path.insert(0, '/Fridge/users/eli/Code/UTIL')
 import Util
+import Padder
 
 class LSTM_loader():
     
-    def __init__(self, participant, batch_size, tt_ratio, shape):
+    def __init__(self, participant, batch_size, tt_ratio, shape, most_phonemes):
         
         self.batch_size = batch_size
         self.shape = shape
         self.participant = participant
         self.name = "LSTM_loader"
         self.ratio = tt_ratio
+        self.most_phonemes = most_phonemes
     
     def get_batch(debug, batch): 
         
@@ -170,20 +171,20 @@ class LSTM_loader():
         
         train, test, val, ind, all_data = self.load_data(path)
         
-        train_loader = Batched_RNN_DataLoader(train, self.batch_size)
-        test_loader = Batched_RNN_DataLoader(test, self.batch_size)
-        val_loader = Batched_RNN_DataLoader(val, self.batch_size)
+        train_loader = Batched_RNN_DataLoader(train, self.batch_size, self.most_phonemes)
+        test_loader = Batched_RNN_DataLoader(test, self.batch_size, self.most_phonemes)
+        val_loader = Batched_RNN_DataLoader(val, self.batch_size, self.most_phonemes)
         
         ind_loader = DataLoader([ind],
                                       batch_size=1,
                                       shuffle=False,
                                       num_workers=0,
-                                      collate_fn=lambda batch: self.get_batch(batch))
+                                      collate_fn=lambda batch: Padder.phoneme_padder(batch, self.most_phonemes))
         eval_loader = DataLoader(all_data,
                                       batch_size=1,
                                       shuffle=False,
                                       num_workers=0,
-                                      collate_fn=lambda batch: self.get_batch(batch))
+                                      collate_fn=lambda batch: Padder.phoneme_padder(batch, self.most_phonemes))
         
         return train_loader, test_loader, val_loader, ind_loader, eval_loader
 
@@ -301,12 +302,28 @@ class Word: # this object stores the label, data and additional info such as the
     
 class Batched_RNN_DataLoader:
     
-    def __init__(self, data, batch_size):
+    def __init__(self, data, batch_size, most_phonemes):
         self.batch_size = batch_size
         self.data = data
+        self.most_phonemes = most_phonemes
         self.ordered_data = self.order_data_on_length(data, True)
         self.loaders, self.available_loaders = self.get_loaders(self.ordered_data)
         self.length = sum(self.available_loaders)
+        self.random_distribution = self.get_random_distribution()
+        
+        
+    def get_random_distribution(self):
+        
+        distribution = []
+        
+        for loader_index in range(0, len(self.available_loaders)):
+            
+            for u in range(0, self.available_loaders[loader_index]):
+                distribution.append(loader_index)
+                
+        random.shuffle(distribution)
+        
+        return distribution
     
     def reset(self):
         
@@ -317,11 +334,12 @@ class Batched_RNN_DataLoader:
         self.ordered_data = self.order_data_on_length(self.data, True)
         self.loaders, self.available_loaders = self.get_loaders(self.ordered_data)
         self.length = sum(self.available_loaders)
+        self.random_distribution = self.get_random_distribution()
     
     def get_batch(self):
         
         """
-        Returns a batch from a loader that still has unseen data 
+        Returns a batch from the next loader that isnt empty 
         """
         
         succes = False
@@ -329,17 +347,35 @@ class Batched_RNN_DataLoader:
         for u in range(0, len(self.available_loaders)):
             if self.available_loaders[u] > 0:
                 succes = True
-                next_batch_data, next_batch_labels = next(self.loaders[u])
+                next_batch_data, _, next_batch_labels, _, batch_phon_ohe = next(self.loaders[u])
                 self.available_loaders[u] = self.available_loaders[u] - 1
                 break
         
-        return next_batch_data, next_batch_labels
+        return next_batch_data, next_batch_labels, batch_phon_ohe
+    
+    def get_random_batch(self):
         
+        """
+        Returns a batch from a random loader that isnt empty 
+        """
+        
+        debug = self.random_distribution
+        
+        r_index = self.random_distribution.pop(0)
+        
+        if self.available_loaders[r_index] > 0:
+            next_batch_data, next_batch_labels, batch_phon_ohe = next(self.loaders[r_index])
+            self.available_loaders[r_index] = self.available_loaders[r_index] - 1
+        else:
+            raise Exception("Empty loader was selected")
+        
+        return next_batch_data, next_batch_labels, batch_phon_ohe
+
     def disect_batch(self, batch): 
         
         """
         Returns data and labels of a batch seperately.
-        """
+        
         
         data = []
         labels = []
@@ -350,7 +386,7 @@ class Batched_RNN_DataLoader:
             data.append(torch.tensor(np.array(item.data)))
             
         return data, labels
-    
+        """
     def order_data_on_length(self, data, shuffle):
         
         """
@@ -386,7 +422,7 @@ class Batched_RNN_DataLoader:
                                       batch_size=self.batch_size,
                                       shuffle=True,
                                       num_workers=0,
-                                      collate_fn=lambda batch: self.disect_batch(batch),
+                                      collate_fn=lambda batch: Padder.phoneme_padder(batch, self.most_phonemes),
                                       drop_last = False)
                 loaders.append(iter(loader))
                 loader_counts.append(math.ceil(len(iter(loader))))

@@ -2,6 +2,28 @@ import numpy as np
 import torch
 
 
+def phoneme_padder(batch, phoneme_len):
+    
+    data = []
+    labels = []
+    phoneme_ohes = []
+    for item in batch:
+        
+        labels.append(item.label.strip())
+        
+        data.append(torch.tensor(np.array(item.data)))
+        
+        phoneme_ohe_data = torch.tensor(item.phoneme_ohe)
+        
+        if phoneme_ohe_data.shape[0] < phoneme_len:
+            a = phoneme_len - phoneme_ohe_data.shape[0]
+            pd = (0,0,int(a/2), a- int(a/2))
+        
+            phoneme_ohes.append(torch.nn.functional.pad(phoneme_ohe_data, pd, value=0))
+        else:
+            phoneme_ohes.append(phoneme_ohe_data)
+            
+    return data, labels, phoneme_ohes
 
 def batch_padder(batch, seq_len, char_len, phoneme_len): 
 

@@ -61,13 +61,15 @@ class Condenser:
                 
                 if model_mode == 'GRU':
                     
-                    eval_item_data, eval_item_label = next(eval_iter)
+                    eval_item_data, eval_item_label, eval_item_phonemes = next(eval_iter)
                     
                     eval_item_data = torch.stack(eval_item_data)
                         
                     eval_item_data = eval_item_data.unsqueeze(1)
                     
-                    _, representation = model(eval_item_data.to(device).to(dtype=torch.float))
+                    eval_item_phonemes = torch.stack(eval_item_phonemes)
+                    
+                    _, representation = model(eval_item_data.to(device).to(dtype=torch.float), eval_item_phonemes.to(device))
                     
                     if isinstance(representation, list):
                         
