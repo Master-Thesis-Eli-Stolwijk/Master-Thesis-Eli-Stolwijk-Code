@@ -12,6 +12,8 @@ from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 from sklearn_extra.cluster import KMedoids
 from sklearn.metrics import silhouette_score
+import pyphen
+import matplotlib
  
 sys.path.insert(0, '/Fridge/users/eli/Code/ANALYZER')
 from Condenser import Condenser
@@ -51,6 +53,72 @@ def get_eval_loader(model_mode, participant):
     
     return eval_loader
 
+def visualize_data(model_mode, alg, dim, clusters=[], representatives=[], representations=[]):
+    
+    if len(representations) == 0:
+        
+        eval_loader = get_eval_loader(model_mode, participant)
+        
+        model = Util.load_model_from_file()
+        
+        representations = get_representations(model, model_mode, eval_loader)
+    
+    data, labels = Util.split_condensed_words(representations)
+    
+    if len(clusters) == 0:
+    
+        if alg == 'tsne':
+    
+            cluster_tools.tsne_visualization(data, labels, dim)
+    
+    else:
+        
+        colors = []
+        
+        markers = []
+        
+        color_map = []
+        marker_map = []
+        
+        cmap = matplotlib.cm.get_cmap('nipy_spectral')
+        
+        counter = 0
+        
+        for u in range (0, len(clusters)):
+            
+            counter += 1
+            
+            color = cmap((1 / len(clusters)) * u)
+            
+            color_map.append(color)
+            
+            if counter == 1:
+                marker_map.append("o")
+            if counter == 2:
+                marker_map.append("^")
+            if counter == 3:
+                counter = 0
+                marker_map.append("s")
+        
+        for u in range(0, len(labels)):
+            
+            for v in range(0, len(clusters)):
+                
+                if labels[u] in clusters[v]:
+                    
+                    colors.append(color_map[v])
+                    markers.append(marker_map[v])
+                    break
+                
+        if len(representatives) == 0:
+            
+            cluster_tools.tsne_visualization(data, labels, dim, colors=np.array(colors), m=markers)
+        
+        else:
+            
+            cluster_tools.tsne_visualization(data, labels, dim, colors=np.array(colors), m=markers, representatives=representatives, rep_colors=color_map, rep_markers=marker_map)
+    
+    
 
 def get_representations(model, model_mode, loader):
     
@@ -138,6 +206,100 @@ def correlate_two_model_representations(model_mode):
     results = Analyzer.get_MRI_Matrices_correlation(MRI_matrices_a, MRI_matrices_b, True)
     print(results)
     return results
+
+def get_clusters(model_mode, alg, verbose, num_clusters=None):
+    
+    model = Util.load_model_from_file()
+    eval_loader = get_eval_loader(model_mode, participant)
+    
+    representations = get_representations(model, model_mode, eval_loader)
+    
+    if alg == 'KMeans':
+        
+        if num_clusters == None:
+            
+            best_score = 0
+            best_nc = 0
+            
+            for num_clusters in range(2, 20):
+                
+                silhouette_scores = []
+                
+                _, _, score = cluster_tools.get_kmeans_clusters(model_mode, representations, num_clusters)
+                    
+                
+            
+                if score > best_score:
+                
+                    best_score = score
+                    best_nc = num_clusters
+                    
+            clusters, representatives, score = cluster_tools.get_kmeans_clusters(model_mode, representations, best_nc)
+                    
+        else:
+            clusters, representatives, score = cluster_tools.get_kmeans_clusters(model_mode, representations, num_clusters)
+             
+            
+    if alg == 'KMedoids':
+        
+        if num_clusters == None:
+            
+            best_score = 0
+            best_nc = 0
+            
+            for num_clusters in range(2, 20):
+                
+                silhouette_scores = []
+                _, _, score = cluster_tools.get_kmedoids_clusters(model_mode, representations, num_clusters)
+          
+            
+                if score > best_score:
+                
+                    best_score = score
+                    best_nc = num_clusters
+                    
+            clusters, representatives, score = cluster_tools.get_kmedoids_clusters(model_mode,representations, best_nc)
+                    
+                    
+        else:
+        
+            clusters, representatives, score = cluster_tools.get_kmedoids_clusters(model_mode, representations, num_clusters)
+                    
+    if alg == 'AC':
+        
+        best_score = 0
+        best_dt = 0
+        for distance_threshold in range(5, 20):
+                    
+            _, _, score = cluster_tools.get_AC_clusters(model_mode, representations, distance_threshold)
+             
+            
+            if score > best_score:
+                
+                best_score = score
+                best_dt = distance_threshold
+                
+        num_clusters, clusters, score = cluster_tools.get_AC_clusters(model_mode, representations, best_dt)
+        representatives = [None for i in range(0, len(clusters))]
+        
+    
+    if alg == 'AF':
+                
+        clusters, representatives, score = cluster_tools.get_AF_clusters(model_mode, representations)
+                
+    
+    #Util.log_clusters(model, alg, syllable_group_clusters, syllable_group_representatives, silhouette_scores)
+    
+    if verbose == True:
+        
+        for u in range(0, len(clusters)):
+            if len(clusters[u]) > 0:
+                print("These are the cluster representatives:")
+                print(representatives[u])
+        print("Silhouette score")
+        print(score)
+    
+    return num_clusters, clusters, representatives, score, representations
 
 def get_clusters_per_syllables(model_mode, alg, verbose, num_clusters=None):
     
@@ -334,6 +496,22 @@ def get_clusters_per_syllables(model_mode, alg, verbose, num_clusters=None):
     
     return syllable_group_representatives
     
+
+def cluster_and_visualize(model_mode, clus_alg, vis_alg, dim, num_clusters=None):
+    
+    num_clusters, clusters, representatives, score, representations = get_clusters(model_mode, clus_alg, False, num_clusters)
+    visualize_data(model_mode, vis_alg, dim, clusters, representatives, representations)
+    
+    
+    
+    
+    
 #get_model_correlations('3DCNN', True, ['pl'])
 #get_clusters_per_syllables('3DCNN', 'KMeans', True)
-get_ema_correlations('GRU', True)
+#get_ema_correlations('GRU', False)
+#visualize_data('3DCNN', 'tsne')
+
+cluster_and_visualize('3DCNN', 'AF', 'tnse', 2)
+
+#num_clusters, clusters, representatives, score, representations = get_clusters('3DCNN', 'KMeans', True, 20)
+#visualize_data('3DCNN', 'tsne', 2, clusters, representatives)

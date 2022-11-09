@@ -15,6 +15,24 @@ sys.path.insert(0, '/Fridge/users/eli/Code/3D_CNN')
 import torch_models
 
 
+def split_condensed_words(condensed_words):
+    
+    data = []
+    labels = []
+    
+    for item in condensed_words:
+        data.append(item.data[0])
+        labels.append(item.label)
+
+    return data, labels
+
+def get_data_from_label(label, data):
+    
+    for item in data:
+        if item.label == label:
+            return item.data
+    
+    raise Exception("No match was found for this label: " + label)
 
 def load_model_from_file():
     
