@@ -258,9 +258,9 @@ def save_and_log_model(model, lv_weight, epoch, test_loss, train_loss, val_loss,
 
 set_seed(0)
 
-participants = ['F3']
+participants = ['F1']
     
-lev_weights = [1]
+lev_weights = [0.75, 1.25, 1.75, 2, 4]
 
 drop_out_rate = 0
 

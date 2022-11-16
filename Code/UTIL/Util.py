@@ -15,13 +15,16 @@ sys.path.insert(0, '/Fridge/users/eli/Code/3D_CNN')
 import torch_models
 
 
-def split_condensed_words(condensed_words):
+def split_condensed_words(model_mode, condensed_words):
     
     data = []
     labels = []
     
     for item in condensed_words:
-        data.append(item.data[0])
+        if model_mode == '3DCNN':
+            data.append(item.data[0])
+        if model_mode == 'GRU':
+            data.append(item.data)
         labels.append(item.label)
 
     return data, labels
@@ -32,7 +35,7 @@ def get_data_from_label(label, data):
         if item.label == label:
             return item.data
     
-    raise Exception("No match was found for this label: " + label)
+    raise Exception("No match was found for this label: " + str(label))
 
 def load_model_from_file():
     
@@ -57,7 +60,6 @@ def load_model_from_file():
 
 
 def switch_representations(to_switch):
-    
     
     """
     Reverses the label string of an object
@@ -348,11 +350,10 @@ def closest_point(pt, others):
      """
      Returns the data point that is closest to the specified coordinate
      """
-     do = 0
      distances = cdist(pt, others)
      return others[distances.argmin()]
 
-def log_clusters(model, alg,  all_clusters, all_medoids, sc):
+def log_clusters(model, alg,  all_clusters, all_medoids, sc, per_syl):
     
     """
     Logs the clustering operations and evaluation to an excell file
@@ -360,22 +361,28 @@ def log_clusters(model, alg,  all_clusters, all_medoids, sc):
     
     to_concat = []
     to_concat.append(pd.DataFrame(sc))
-    for u in range(0, len(all_clusters)):
+    
+    if per_syl == True:
         
-         
-         syllables = u
-         clusters = all_clusters[u]
-         medoids = all_medoids[u]
-         
-         if len(clusters) > 0:
+        for u in range(0, len(all_clusters)):
+            
+             syllables = u
+             clusters = all_clusters[u]
+             medoids = all_medoids[u]
              
-             to_concat.append(pd.DataFrame([str(u) + " Syllables"]))
-             
-             to_concat.append(pd.DataFrame(["Cluster 0", ["Medoid", medoids[0]], ["Cluster members", clusters[0]]]))
-             for v in range(1, len(clusters)):
-                 to_concat.append(pd.DataFrame(["Cluster " + str(v), ["Medoid", medoids[v]], ["Cluster members", clusters[v]]]))
-         to_concat.append(pd.DataFrame(["", "", ""]))  
-  
+             if len(clusters) > 0:
+                 
+                 to_concat.append(pd.DataFrame([str(u) + " Syllables"]))
+                 
+                 to_concat.append(pd.DataFrame(["Cluster 0", ["Medoid", medoids[0]], ["Cluster members", clusters[0]]]))
+                 for v in range(1, len(clusters)):
+                     to_concat.append(pd.DataFrame(["Cluster " + str(v), ["Medoid", medoids[v]], ["Cluster members", clusters[v]]]))
+             to_concat.append(pd.DataFrame(["", "", ""]))  
+    else:
+        to_concat.append(pd.DataFrame(["Cluster 0", ["Medoid", all_medoids[0]], ["Cluster members", all_clusters[0]]]))
+        for v in range(1, len(all_clusters)):
+            to_concat.append(pd.DataFrame(["Cluster " + str(v), ["Medoid", all_medoids[v]], ["Cluster members", all_clusters[v]]]))
+    
     to_write = pd.concat(to_concat)
     
     now = datetime.datetime.now()
